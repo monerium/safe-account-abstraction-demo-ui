@@ -56,7 +56,7 @@ stripePack.subscribe('onramp_session_updated', (e) => {
   console.log('Session Updated', e.payload)
 })
 `
-
+TODO
 export const MONERIUM_SNIPPET = `import { MoneriumPack } from '@safe-global/onramp-kit'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import { OrderState } from '@monerium/sdk'

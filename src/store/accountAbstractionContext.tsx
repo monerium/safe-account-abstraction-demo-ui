@@ -77,7 +77,6 @@ const useAccountAbstraction = () => {
   return context
 }
 
-const MONERIUM_TOKEN = 'monerium_token'
 const MONERIUM_SELECTED_SAFE = 'monerium_safe_selected'
 
 const AccountAbstractionProvider = ({ children }: { children: JSX.Element }) => {
@@ -216,6 +215,7 @@ const AccountAbstractionProvider = ({ children }: { children: JSX.Element }) => 
 
       const pack = new MoneriumPack({
         clientId: process.env.REACT_APP_MONERIUM_CLIENT_ID || '',
+        redirectUrl: process.env.REACT_APP_MONERIUM_REDIRECT_URL,
         environment: 'sandbox'
       })
 
@@ -227,43 +227,38 @@ const AccountAbstractionProvider = ({ children }: { children: JSX.Element }) => 
     })()
   }, [web3Provider, safeSelected])
 
-  const startMoneriumFlow = useCallback(
-    async (authCode?: string, refreshToken?: string) => {
-      if (!moneriumPack) return
+  const fetchData = async (moneriumClient) => {
+    if (moneriumClient.bearerProfile) {
+      const authContext = await moneriumClient.getAuthContext()
+      const profile = await moneriumClient.getProfile(authContext.defaultProfile)
+      const balances = await moneriumClient.getBalances(authContext.defaultProfile)
 
-      localStorage.setItem(MONERIUM_SELECTED_SAFE, safeSelected)
+      setMoneriumInfo(getMoneriumInfo(safeSelected, authContext, profile, balances))
+    }
+  }
 
-      const moneriumClient = await moneriumPack.open({
-        redirectUrl: process.env.REACT_APP_MONERIUM_REDIRECT_URL,
-        authCode,
-        refreshToken
-      })
+  const startMoneriumFlow = useCallback(async () => {
+    if (!moneriumPack) return
 
-      if (moneriumClient.bearerProfile) {
-        localStorage.setItem(MONERIUM_TOKEN, moneriumClient.bearerProfile.refresh_token)
+    localStorage.setItem(MONERIUM_SELECTED_SAFE, safeSelected)
 
-        const authContext = await moneriumClient.getAuthContext()
-        const profile = await moneriumClient.getProfile(authContext.defaultProfile)
-        const balances = await moneriumClient.getBalances(authContext.defaultProfile)
+    const moneriumClient = await moneriumPack.open({ initiateAuthFlow: true })
 
-        setMoneriumInfo(getMoneriumInfo(safeSelected, authContext, profile, balances))
-      }
-    },
-    [moneriumPack, safeSelected]
-  )
+    fetchData(moneriumClient)
+  }, [moneriumPack, safeSelected])
 
   const closeMoneriumFlow = useCallback(() => {
     moneriumPack?.close()
-    localStorage.removeItem(MONERIUM_TOKEN)
     setMoneriumInfo(undefined)
   }, [moneriumPack])
 
   useEffect(() => {
-    const authCode = new URLSearchParams(window.location.search).get('code') || undefined
-    const refreshToken = localStorage.getItem(MONERIUM_TOKEN) || undefined
+    ;(async () => {
+      const moneriumClient = await moneriumPack?.open()
 
-    if (authCode || refreshToken) startMoneriumFlow(authCode, refreshToken)
-  }, [startMoneriumFlow])
+      fetchData(moneriumClient)
+    })()
+  }, [moneriumPack])
 
   // TODO: add disconnect owner wallet logic ?
 
